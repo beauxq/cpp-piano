@@ -14,9 +14,9 @@ struct Piano
     const int sampleRate = 44100;
     const int transpose;
 
-    // 35 is the number of notes made in makeNotes
+    // 40 is the number of notes made in makeNotes
     // using array to make sure they don't move
-    std::array<sf::SoundBuffer, 35> noteBuffers;
+    std::array<sf::SoundBuffer, 40> noteBuffers;
 
     std::unordered_map<sf::Keyboard::Key, sf::Sound> notes;
 
@@ -152,6 +152,8 @@ struct Piano
 
     void makeNotes()
     {
+        // adding any notes to this needs to change the size of the buffers array
+
         makeNote(getFreq(-9), sf::Keyboard::Z);  // middle C
         makeNote(getFreq(-8), sf::Keyboard::S);
         makeNote(getFreq(-7), sf::Keyboard::X);
@@ -164,6 +166,13 @@ struct Piano
         makeNote(getFreq(0), sf::Keyboard::N);  // A 440
         makeNote(getFreq(1), sf::Keyboard::J);
         makeNote(getFreq(2), sf::Keyboard::M);
+
+        // duplicate a few notes between the 2 levels
+        makeNote(getFreq(3), sf::Keyboard::Comma);
+        makeNote(getFreq(4), sf::Keyboard::L);
+        makeNote(getFreq(5), sf::Keyboard::Period);
+        makeNote(getFreq(6), sf::Keyboard::SemiColon);
+        makeNote(getFreq(7), sf::Keyboard::Slash);
 
         makeNote(getFreq(3), sf::Keyboard::Q);
         makeNote(getFreq(4), sf::Keyboard::Num2);
