@@ -118,10 +118,31 @@ struct Piano
         C 261.63 -> 44100/168 = 262.5 */
     void makeNote(const double& freq, const sf::Keyboard::Key& key)
     {
+        size_t closestCross_i = 0;
+        sf::Int16 closestCross = 32767;  // max int16
+
         std::vector<sf::Int16> samples;
-        for (size_t x = 0; x < int(sampleRate / freq); ++x)
+        for (size_t x = 0; x < size_t(24 * sampleRate / freq); ++x)
         {
             samples.push_back(int(4096 * sin(2.0 * pi * freq * x / sampleRate)));
+
+            // compare to closest cross
+            if ((x > 0) && (samples[samples.size() - 2] < 0) && (samples[samples.size() - 1] >= 0))
+            {
+                // std::cout << "cross with freq " << freq << std::endl;
+                // std::cout << "closest " << closestCross << std::endl;
+                // std::cout << "values " << samples[samples.size() - 2] << " " << samples[samples.size() - 1] << std::endl;
+                if (abs(samples[samples.size() - 2]) < abs(closestCross))
+                {
+                    closestCross_i = samples.size() - 2;
+                    closestCross = samples[samples.size() - 2];
+                }
+                if (abs(samples[samples.size() - 1]) < closestCross)
+                {
+                    closestCross_i = samples.size() - 1;
+                    closestCross = samples[samples.size() - 1];
+                }
+            }
         }
 
         size_t bufferIndex = notes.size();
@@ -136,9 +157,11 @@ struct Piano
         }*/
         
         noteBuffers[bufferIndex].loadFromSamples(&(samples[0]),
-                                                 samples.size(),
+                                                 closestCross_i,
                                                  1,
                                                  sampleRate);
+        // std::cout << "took " << closestCross_i << " out of " << samples.size() << std::endl;
+        // std::cout << "value " << closestCross << std::endl;
         sf::Sound* thisNote = &(notes[key]);
         thisNote->setBuffer(noteBuffers[bufferIndex]);
         thisNote->setLoop(true);
