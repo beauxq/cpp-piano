@@ -8,7 +8,7 @@
 
 // #include <iostream>  // debugging
 
-const double pi = 3.14159265358979323846;
+constexpr double pi = 3.14159265358979323846;
 
 struct Piano
 {
@@ -118,11 +118,13 @@ struct Piano
         C 261.63 -> 44100/168 = 262.5 */
     void makeNote(const double& freq, const sf::Keyboard::Key& key)
     {
+        constexpr double max_wavelengths = 24.0;
+
         size_t closestCross_i = 0;
         sf::Int16 closestCross = 32767;  // max int16
 
         std::vector<sf::Int16> samples;
-        for (size_t x = 0; x < size_t(24 * sampleRate / freq); ++x)
+        for (size_t x = 0; x < size_t(max_wavelengths * sampleRate / freq); ++x)
         {
             samples.push_back(int(4096 * sin(2.0 * pi * freq * x / sampleRate)));
 
@@ -162,6 +164,7 @@ struct Piano
                                                  sampleRate);
         // std::cout << "took " << closestCross_i << " out of " << samples.size() << std::endl;
         // std::cout << "value " << closestCross << std::endl;
+        // std::cout << "wavelengths taken: " << closestCross_i * max_wavelengths / samples.size() << std::endl;
         sf::Sound* thisNote = &(notes[key]);
         thisNote->setBuffer(noteBuffers[bufferIndex]);
         thisNote->setLoop(true);
