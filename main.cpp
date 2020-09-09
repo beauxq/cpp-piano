@@ -14,7 +14,7 @@ constexpr double pi = 3.14159265358979323846;
 struct Piano
 {
     const int sampleRate = 44100;
-    const int transpose;
+    int transpose;
 
     // using linked list (rather than vector) to make sure they don't move
     std::list<sf::SoundBuffer> noteBuffers;
@@ -62,6 +62,19 @@ struct Piano
                         sound->setVolume(100);
                         // std::cout << "about to play, buffer sample count: " << sound->getBuffer()->getSampleCount() << std::endl;
                         sound->play();
+                    }
+                    // TODO: if transpose is changed, released keys need to release note they started
+                    else if (event.key.code == sf::Keyboard::Up)
+                    {
+                        int newTranspose = transpose + 12;
+                        transpose = newTranspose > 36 ? transpose : newTranspose;
+                        makeNotes();
+                    }
+                    else if (event.key.code == sf::Keyboard::Down)
+                    {
+                        int newTranspose = transpose - 12;
+                        transpose = newTranspose < -48 ? transpose : newTranspose;
+                        makeNotes();
                     }
                 }
                 else if (event.type == sf::Event::KeyReleased)
