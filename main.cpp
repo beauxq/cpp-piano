@@ -15,6 +15,7 @@ struct Piano
 {
     const int sampleRate = 44100;
     int transpose;
+    const bool stretchedTuning;
 
     // using linked list (rather than vector) to make sure they don't move
     std::list<sf::SoundBuffer> noteBuffers;
@@ -25,7 +26,8 @@ struct Piano
 
     sf::RenderWindow window;
 
-    Piano(const int transpose=0) : transpose(transpose)
+    Piano(const int transpose=0, const bool stretchedTuning=true) : transpose(transpose),
+                                                                    stretchedTuning(stretchedTuning)
     {
         // std::cout << "in ctor, before makeNotes" << std::endl;
         makeNotes();
@@ -120,9 +122,15 @@ struct Piano
     }
 
     /** h is half steps away from A 440 */
-    static double getFreq(const double& h)
+    double getFreq(const double& h)
     {
-        return 440.0 * pow(2.0, h / 12.0);
+        // Wikipedia says stretched tuning is 35 cents over half the piano.
+        // It says it in a confusing way that I might be misinterpreting,
+        // and cites a source that no longer exists.
+        // 35 cents over 4 octaves is
+        // (2 ** (4835 / 1200)) ** 0.25
+        // = 2.0101339843933212 (per octave)
+        return 440.0 * pow(stretchedTuning ? 2.0101339843933212 : 2.0, h / 12.0);
     }
 
     /** rounded clip on amplitude
