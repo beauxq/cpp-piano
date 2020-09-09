@@ -4,7 +4,7 @@
 #include <cmath>
 #include <unordered_map>
 #include <vector>
-#include <array>
+#include <list>
 
 // #include <iostream>  // debugging
 
@@ -15,11 +15,12 @@ struct Piano
     const int sampleRate = 44100;
     const int transpose;
 
-    // 40 is the number of notes made in makeNotes
-    // using array to make sure they don't move
-    std::array<sf::SoundBuffer, 40> noteBuffers;
+    // using linked list (rather than vector) to make sure they don't move
+    std::list<sf::SoundBuffer> noteBuffers;
 
-    std::unordered_map<sf::Keyboard::Key, sf::Sound> notes;
+    /** value is number of half steps from A 440 */
+    static const std::unordered_map<sf::Keyboard::Key, int> keysToSteps;
+    std::unordered_map<int, sf::Sound> stepsToSounds;
 
     sf::RenderWindow window;
 
@@ -53,45 +54,47 @@ struct Piano
                     window.close();
                 else if (event.type == sf::Event::KeyPressed)
                 {
-                    auto keyAndSound = notes.find(event.key.code);
-                    if (keyAndSound != notes.end())
+                    auto keyAndStep = keysToSteps.find(event.key.code);
+                    if (keyAndStep != keysToSteps.end())
                     {
-                        keyAndSound->second.setVolume(100);
-                        // std::cout << "about to play, buffer sample count: " << keyAndSound->second.getBuffer()->getSampleCount() << std::endl;
-                        keyAndSound->second.play();
+                        sf::Sound* sound = &(stepsToSounds[keyAndStep->second + transpose]);
+                        sound->setVolume(100);
+                        // std::cout << "about to play, buffer sample count: " << sound->getBuffer()->getSampleCount() << std::endl;
+                        sound->play();
                     }
                 }
                 else if (event.type == sf::Event::KeyReleased)
                 {
-                    auto keyAndSound = notes.find(event.key.code);
-                    if (keyAndSound != notes.end())
+                    auto keyAndStep = keysToSteps.find(event.key.code);
+                    if (keyAndStep != keysToSteps.end())
                     {
+                        sf::Sound* sound = &(stepsToSounds[keyAndStep->second + transpose]);
                         // anything below 49.5 will fade and then stop
-                        keyAndSound->second.setVolume(49);
-                        // std::cout << "sound addr: " << &(keyAndSound->second) << std::endl;
+                        sound->setVolume(49);
+                        // std::cout << "sound addr: " << sound << std::endl;
                     }
                 }
             }
 
             // volume envelopes
-            for (auto& keyAndSound : notes)
+            for (auto& stepAndSound : stepsToSounds)
             {
-                if (keyAndSound.second.getStatus() == sf::SoundSource::Playing)
+                if (stepAndSound.second.getStatus() == sf::SoundSource::Playing)
                 {
-                    // std::cout << "sound addr adj volume: " << &(keyAndSound.second) << std::endl;
-                    double vol = keyAndSound.second.getVolume();
+                    // std::cout << "sound addr adj volume: " << &(stepAndSound.second) << std::endl;
+                    double vol = stepAndSound.second.getVolume();
                     if (vol > 50)
                     {  // articulation
                         // std::cout << "vol == " << vol << std::endl;
-                        keyAndSound.second.setVolume(vol - 0.03125);  // 1/32  timed with fps
+                        stepAndSound.second.setVolume(vol - 0.03125);  // 1/32  timed with fps
                     }
                     else if (vol < 49.5 && vol > 0.5)
                     {  // fade out
-                        keyAndSound.second.setVolume(vol - 0.25);  // 1/4
+                        stepAndSound.second.setVolume(vol - 0.25);  // 1/4
                     }
                     else if (vol <= 0.5)
                     {
-                        keyAndSound.second.stop();
+                        stepAndSound.second.stop();
                     }
                 }
             }
@@ -102,11 +105,10 @@ struct Piano
 
     }
 
-    /** h is half steps away from A 440
-        transpose will also be added */
-    double getFreq(const double h)
+    /** h is half steps away from A 440 */
+    static double getFreq(const double& h)
     {
-        return 440.0 * pow(2, (transpose + h) / 12.0);
+        return 440.0 * pow(2.0, h / 12.0);
     }
 
     /** sin wave
@@ -117,9 +119,10 @@ struct Piano
         frequencies are ceilinged to a fraction of the sample rate
         A 440.00 -> 44100/100 = 441
         C 261.63 -> 44100/168 = 262.5 */
-    void makeNote(const double& freq, const sf::Keyboard::Key& key)
+    void makeNote(const int& step)
     {
         constexpr double max_wavelengths = 24.0;
+        const double freq = getFreq(step);
 
         size_t closestCross_i = size_t(sampleRate / freq);
         sf::Int16 closestCross = 32767;  // max int16
@@ -148,86 +151,97 @@ struct Piano
             }
         }
 
-        size_t bufferIndex = notes.size();
+        // TODO: try catch bad_alloc
+        noteBuffers.emplace_back();
 
         /* debugging
         if (key == sf::Keyboard::Z)
         {
-            std::cout << "bufferIndex: " << bufferIndex << std::endl;
+            std::cout << "buffer count: " << noteBuffers.size() << std::endl;
             std::cout << "sample 0: " << samples[0] << std::endl;
             std::cout << "sample 1: " << samples[1] << std::endl;
             std::cout << "sample 2: " << samples[2] << std::endl;
         }*/
         
-        noteBuffers[bufferIndex].loadFromSamples(&(samples[0]),
-                                                 closestCross_i,
-                                                 1,
-                                                 sampleRate);
+        noteBuffers.back().loadFromSamples(&(samples[0]),
+                                           closestCross_i,
+                                           1,
+                                           sampleRate);
         // std::cout << "took " << closestCross_i << " out of " << samples.size() << std::endl;
         // std::cout << "value " << closestCross << std::endl;
         // std::cout << "wavelengths taken: " << closestCross_i * max_wavelengths / samples.size() << std::endl;
-        sf::Sound* thisNote = &(notes[key]);
-        thisNote->setBuffer(noteBuffers[bufferIndex]);
-        thisNote->setLoop(true);
-        /* thisNote.play();
-        if (key == sf::Keyboard::Z)
+        sf::Sound* thisSound = &(stepsToSounds[step]);
+        thisSound->setBuffer(noteBuffers.back());
+        thisSound->setLoop(true);
+        /* thisSound.play();
+        if (step == -9)  // middle C
         {
-            std::cout << "buffer address from array right after setting: " << &(noteBuffers[0]) << std::endl;
-            std::cout << "buffer address from note right after setting: " << thisNote->getBuffer() << std::endl;
+            std::cout << "buffer address from array right after setting: " << &(noteBuffers.back()) << std::endl;
+            std::cout << "buffer address from note right after setting: " << thisSound->getBuffer() << std::endl;
         }
         // sf::sleep(sf::milliseconds(2000));*/
     }
 
     void makeNotes()
     {
-        // adding any notes to this needs to change the size of the buffers array
-
-        makeNote(getFreq(-9), sf::Keyboard::Z);  // middle C
-        makeNote(getFreq(-8), sf::Keyboard::S);
-        makeNote(getFreq(-7), sf::Keyboard::X);
-        makeNote(getFreq(-6), sf::Keyboard::D);
-        makeNote(getFreq(-5), sf::Keyboard::C);
-        makeNote(getFreq(-4), sf::Keyboard::V);
-        makeNote(getFreq(-3), sf::Keyboard::G);
-        makeNote(getFreq(-2), sf::Keyboard::B);
-        makeNote(getFreq(-1), sf::Keyboard::H);
-        makeNote(getFreq(0), sf::Keyboard::N);  // A 440
-        makeNote(getFreq(1), sf::Keyboard::J);
-        makeNote(getFreq(2), sf::Keyboard::M);
-
-        // duplicate a few notes between the 2 levels
-        makeNote(getFreq(3), sf::Keyboard::Comma);
-        makeNote(getFreq(4), sf::Keyboard::L);
-        makeNote(getFreq(5), sf::Keyboard::Period);
-        makeNote(getFreq(6), sf::Keyboard::SemiColon);
-        makeNote(getFreq(7), sf::Keyboard::Slash);
-
-        makeNote(getFreq(3), sf::Keyboard::Q);
-        makeNote(getFreq(4), sf::Keyboard::Num2);
-        makeNote(getFreq(5), sf::Keyboard::W);
-        makeNote(getFreq(6), sf::Keyboard::Num3);
-        makeNote(getFreq(7), sf::Keyboard::E);
-        makeNote(getFreq(8), sf::Keyboard::R);
-        makeNote(getFreq(9), sf::Keyboard::Num5);
-        makeNote(getFreq(10), sf::Keyboard::T);
-        makeNote(getFreq(11), sf::Keyboard::Num6);
-        makeNote(getFreq(12), sf::Keyboard::Y);
-        makeNote(getFreq(13), sf::Keyboard::Num7);
-        makeNote(getFreq(14), sf::Keyboard::U);
-
-        makeNote(getFreq(15), sf::Keyboard::I);
-        makeNote(getFreq(16), sf::Keyboard::Num9);
-        makeNote(getFreq(17), sf::Keyboard::O);
-        makeNote(getFreq(18), sf::Keyboard::Num0);
-        makeNote(getFreq(19), sf::Keyboard::P);
-        makeNote(getFreq(20), sf::Keyboard::LBracket);
-        makeNote(getFreq(21), sf::Keyboard::Equal);
-        makeNote(getFreq(22), sf::Keyboard::RBracket);
-        makeNote(getFreq(23), sf::Keyboard::BackSpace);
-        // keyboard layouts differ in what key is beside right bracket
-        makeNote(getFreq(24), sf::Keyboard::BackSlash);
-        makeNote(getFreq(24), sf::Keyboard::Return);
+        for (auto& keyAndStep : keysToSteps)
+        {
+            int transposed = keyAndStep.second + transpose;
+            sf::Sound* sound = &(stepsToSounds[transposed]);
+            if (sound->getBuffer() == nullptr)
+            {
+                makeNote(transposed);
+            }
+        }
     }
+};
+
+const std::unordered_map<sf::Keyboard::Key, int> Piano::keysToSteps = {
+    {sf::Keyboard::Z, -9},  // middle C
+    {sf::Keyboard::S, -8},
+    {sf::Keyboard::X, -7},
+    {sf::Keyboard::D, -6},
+    {sf::Keyboard::C, -5},
+    {sf::Keyboard::V, -4},
+    {sf::Keyboard::G, -3},
+    {sf::Keyboard::B, -2},
+    {sf::Keyboard::H, -1},
+    {sf::Keyboard::N, 0},  // A 440
+    {sf::Keyboard::J, 1},
+    {sf::Keyboard::M, 2},
+
+    // duplicate a few notes between the 2 levels
+    {sf::Keyboard::Comma, 3},
+    {sf::Keyboard::L, 4},
+    {sf::Keyboard::Period, 5},
+    {sf::Keyboard::SemiColon, 6},
+    {sf::Keyboard::Slash, 7},
+
+    {sf::Keyboard::Q, 3},
+    {sf::Keyboard::Num2, 4},
+    {sf::Keyboard::W, 5},
+    {sf::Keyboard::Num3, 6},
+    {sf::Keyboard::E, 7},
+    {sf::Keyboard::R, 8},
+    {sf::Keyboard::Num5, 9},
+    {sf::Keyboard::T, 10},
+    {sf::Keyboard::Num6, 11},
+    {sf::Keyboard::Y, 12},
+    {sf::Keyboard::Num7, 13},
+    {sf::Keyboard::U, 14},
+
+    {sf::Keyboard::I, 15},
+    {sf::Keyboard::Num9, 16},
+    {sf::Keyboard::O, 17},
+    {sf::Keyboard::Num0, 18},
+    {sf::Keyboard::P, 19},
+    {sf::Keyboard::LBracket, 20},
+    {sf::Keyboard::Equal, 21},
+    {sf::Keyboard::RBracket, 22},
+    {sf::Keyboard::BackSpace, 23},
+    // keyboard layouts differ in what key is beside right bracket
+    {sf::Keyboard::BackSlash, 24},
+    {sf::Keyboard::Return, 24}
 };
 
 int main()
