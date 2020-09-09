@@ -11,23 +11,29 @@
 
 constexpr double pi = 3.14159265358979323846;
 
+typedef int Step;
+
 struct Piano
 {
     const int sampleRate = 44100;
-    int transpose;
+    Step transpose;
     const bool stretchedTuning;
 
     // using linked list (rather than vector) to make sure they don't move
     std::list<sf::SoundBuffer> noteBuffers;
 
-    /** value is number of half steps from A 440 */
-    static const std::unordered_map<sf::Keyboard::Key, int> keysToSteps;
-    std::unordered_map<int, sf::Sound> stepsToSounds;
+    /** value is number of half steps from A 440, not transposed */
+    static const std::unordered_map<sf::Keyboard::Key, Step> keysToSteps;
+    /** transposed step mapped to sound */
+    std::unordered_map<Step, sf::Sound> stepsToSounds;
+
+    /** transposed step being held down */
+    std::unordered_map<sf::Keyboard::Key, Step> keysToStepsHeld;
 
     sf::RenderWindow window;
 
-    Piano(const int transpose=0, const bool stretchedTuning=true) : transpose(transpose),
-                                                                    stretchedTuning(stretchedTuning)
+    Piano(const Step transpose=0, const bool stretchedTuning=true) : transpose(transpose),
+                                                                     stretchedTuning(stretchedTuning)
     {
         // std::cout << "in ctor, before makeNotes" << std::endl;
         makeNotes();
@@ -60,31 +66,34 @@ struct Piano
                     auto keyAndStep = keysToSteps.find(event.key.code);
                     if (keyAndStep != keysToSteps.end())
                     {
-                        sf::Sound* sound = &(stepsToSounds[keyAndStep->second + transpose]);
+                        Step transposedStep = keyAndStep->second + transpose;
+                        sf::Sound* sound = &(stepsToSounds[transposedStep]);
                         sound->setVolume(100);
                         // std::cout << "about to play, buffer sample count: " << sound->getBuffer()->getSampleCount() << std::endl;
                         sound->play();
+
+                        keysToStepsHeld[keyAndStep->first] = transposedStep;
                     }
                     // TODO: if transpose is changed, released keys need to release note they started
                     else if (event.key.code == sf::Keyboard::Up)
                     {
-                        int newTranspose = transpose + 12;
+                        Step newTranspose = transpose + 12;
                         transpose = newTranspose > 36 ? transpose : newTranspose;
                         makeNotes();
                     }
                     else if (event.key.code == sf::Keyboard::Down)
                     {
-                        int newTranspose = transpose - 12;
+                        Step newTranspose = transpose - 12;
                         transpose = newTranspose < -48 ? transpose : newTranspose;
                         makeNotes();
                     }
                 }
                 else if (event.type == sf::Event::KeyReleased)
                 {
-                    auto keyAndStep = keysToSteps.find(event.key.code);
-                    if (keyAndStep != keysToSteps.end())
+                    auto keyAndTransposedStep = keysToStepsHeld.find(event.key.code);
+                    if (keyAndTransposedStep != keysToStepsHeld.end())
                     {
-                        sf::Sound* sound = &(stepsToSounds[keyAndStep->second + transpose]);
+                        sf::Sound* sound = &(stepsToSounds[keyAndTransposedStep->second]);
                         // anything below 49.5 will fade and then stop
                         sound->setVolume(49);
                         // std::cout << "sound addr: " << sound << std::endl;
@@ -162,7 +171,7 @@ struct Piano
         frequencies are ceilinged to a fraction of the sample rate
         A 440.00 -> 44100/100 = 441
         C 261.63 -> 44100/168 = 262.5 */
-    void makeNote(const int& step)
+    void makeNote(const Step& step)
     {
         constexpr double max_wavelengths = 24.0;
         const double freq = getFreq(step);
@@ -233,7 +242,7 @@ struct Piano
     {
         for (auto& keyAndStep : keysToSteps)
         {
-            int transposed = keyAndStep.second + transpose;
+            Step transposed = keyAndStep.second + transpose;
             sf::Sound* sound = &(stepsToSounds[transposed]);
             if (sound->getBuffer() == nullptr)
             {
@@ -243,7 +252,7 @@ struct Piano
     }
 };
 
-const std::unordered_map<sf::Keyboard::Key, int> Piano::keysToSteps = {
+const std::unordered_map<sf::Keyboard::Key, Step> Piano::keysToSteps = {
     {sf::Keyboard::Z, -9},  // middle C
     {sf::Keyboard::S, -8},
     {sf::Keyboard::X, -7},
