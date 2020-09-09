@@ -5,6 +5,7 @@
 #include <unordered_map>
 #include <vector>
 #include <list>
+#include <algorithm>  // min
 
 // #include <iostream>  // debugging
 
@@ -111,9 +112,30 @@ struct Piano
         return 440.0 * pow(2.0, h / 12.0);
     }
 
-    /** sin wave
-        amplitude 4096 / max signed 16 bit int
-        1 wavelength at the given frequency (to be repeated)
+    /** rounded clip on amplitude
+     *  sin wave won't work at low frequencies, but simple clipping is too drastic
+    */
+    static double amplitudeCap(double amp)
+    {
+        amp = abs(amp);
+        // sigmoid
+        double t = 1.0 / (1.0 + exp(-((amp - 28000.0) / 5000.0)));
+        // inverted sigmoid
+        double s = 1.0 - t;
+        // lower bound for large amp
+        double g = 28000.0 / amp;
+        // space between 1 and lower bound
+        double h = 1 - g;
+        // inverted sigmoid squished in h
+        double o = h * s + g;
+        // gradual shift from unbounded inverted sigmoid to squished inverted sigmoid
+        double p = t * o + pow(s, 1.5);
+        return std::min(1.0, p);
+    }
+
+    /** sin wave at the given frequency
+        amplitude cap out of max signed 16 bit int
+        find number of wavelengths to make a smooth loop
 
         if max_wavelengths is 1,
         frequencies are ceilinged to a fraction of the sample rate
@@ -123,6 +145,8 @@ struct Piano
     {
         constexpr double max_wavelengths = 24.0;
         const double freq = getFreq(step);
+        const double max_amplitude = 5e9 / pow(freq + 45.0, 2.5) + 3500.0;
+        // TODO: not happy with this ^ g2 to d3 is a little low
 
         size_t closestCross_i = size_t(sampleRate / freq);
         sf::Int16 closestCross = 32767;  // max int16
@@ -130,7 +154,8 @@ struct Piano
         std::vector<sf::Int16> samples;
         for (size_t x = 0; x < size_t(max_wavelengths * sampleRate / freq); ++x)
         {
-            samples.push_back(int(4096 * sin(2.0 * pi * freq * x / sampleRate)));
+            double value = max_amplitude * sin(2.0 * pi * freq * x / sampleRate);
+            samples.push_back(sf::Int16(amplitudeCap(value) * value));
 
             // compare to closest cross
             if ((x > 0) && (samples[samples.size() - 2] < 0) && (samples[samples.size() - 1] >= 0))
@@ -155,8 +180,9 @@ struct Piano
         noteBuffers.emplace_back();
 
         /* debugging
-        if (key == sf::Keyboard::Z)
+        if (step == -22 || step == -23)
         {
+            std::cout << "max amp: " << max_amplitude << std::endl;
             std::cout << "buffer count: " << noteBuffers.size() << std::endl;
             std::cout << "sample 0: " << samples[0] << std::endl;
             std::cout << "sample 1: " << samples[1] << std::endl;
