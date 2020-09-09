@@ -30,13 +30,13 @@ struct Piano
         // std::cout << "in ctor, before makeNotes" << std::endl;
         makeNotes();
         /* debugging
-        std::cout << "made notes, size: " << notes.size() << std::endl;
+        std::cout << "made notes, size: " << stepsToSounds.size() << std::endl;
         std::cout << "buffers size: " << noteBuffers.size() << std::endl;
-        std::cout << "buffer sample count: " << noteBuffers[0].getSampleCount() << std::endl;
-        std::cout << "buffer contents: " << noteBuffers[0].getSamples()[1] << std::endl;
-        std::cout << "buffer address from array: " << &(noteBuffers[0]) << std::endl;
-        std::cout << "buffer address from note: " << notes[sf::Keyboard::Z].getBuffer() << std::endl;
-        std::cout << "buffer sample count from note: " << notes[sf::Keyboard::Z].getBuffer()->getSampleCount() << std::endl;
+        std::cout << "buffer sample count: " << noteBuffers.front().getSampleCount() << std::endl;
+        std::cout << "buffer contents: " << noteBuffers.front().getSamples()[1] << std::endl;
+        // noteBuffers made from unordered collection so anything could be in front
+        std::cout << "buffer address from note: " << stepsToSounds[-9].getBuffer() << std::endl;
+        std::cout << "buffer sample count from note: " << stepsToSounds[-9].getBuffer()->getSampleCount() << std::endl;
         */
     }
 
