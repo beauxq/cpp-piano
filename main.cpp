@@ -113,6 +113,7 @@ struct Piano
         amplitude 4096 / max signed 16 bit int
         1 wavelength at the given frequency (to be repeated)
 
+        if max_wavelengths is 1,
         frequencies are ceilinged to a fraction of the sample rate
         A 440.00 -> 44100/100 = 441
         C 261.63 -> 44100/168 = 262.5 */
@@ -120,7 +121,7 @@ struct Piano
     {
         constexpr double max_wavelengths = 24.0;
 
-        size_t closestCross_i = 0;
+        size_t closestCross_i = size_t(sampleRate / freq);
         sf::Int16 closestCross = 32767;  // max int16
 
         std::vector<sf::Int16> samples;
