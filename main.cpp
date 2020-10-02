@@ -142,25 +142,25 @@ struct Piano
         return 440.0 * pow(stretchedTuning ? 2.0101339843933212 : 2.0, h / 12.0);
     }
 
-    /** rounded clip on amplitude
+    /** soft, rounded clip on amplitude
      *  sin wave won't work at low frequencies, but simple clipping is too drastic
     */
-    static double amplitudeCap(double amp)
+    static sf::Int16 amplitudeCap(const double& amp)
     {
-        amp = abs(amp);
+        double abs_amp = abs(amp);
         // sigmoid
-        double t = 1.0 / (1.0 + exp(-((amp - 28000.0) / 5000.0)));
+        double t = 1.0 / (1.0 + exp(-((abs_amp - 28000.0) / 5000.0)));
         // inverted sigmoid
         double s = 1.0 - t;
         // lower bound for large amp
-        double g = 28000.0 / amp;
+        double g = 28000.0 / abs_amp;
         // space between 1 and lower bound
         double h = 1 - g;
         // inverted sigmoid squished in h
         double o = h * s + g;
         // gradual shift from unbounded inverted sigmoid to squished inverted sigmoid
         double p = t * o + pow(s, 1.5);
-        return std::min(1.0, p);
+        return amp * std::min(1.0, p);
     }
 
     /** sin wave at the given frequency
@@ -185,7 +185,7 @@ struct Piano
         for (size_t x = 0; x < size_t(max_wavelengths * sampleRate / freq); ++x)
         {
             double value = max_amplitude * sin(2.0 * pi * freq * x / sampleRate);
-            samples.push_back(sf::Int16(amplitudeCap(value) * value));
+            samples.push_back(amplitudeCap(value));
 
             // compare to closest cross
             if ((x > 0) && (samples[samples.size() - 2] < 0) && (samples[samples.size() - 1] >= 0))
