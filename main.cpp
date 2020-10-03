@@ -74,7 +74,6 @@ struct Piano
 
                         keysToStepsHeld[keyAndStep->first] = transposedStep;
                     }
-                    // TODO: if transpose is changed, released keys need to release note they started
                     else if (event.key.code == sf::Keyboard::Up)
                     {
                         Step newTranspose = transpose + 12;
@@ -125,7 +124,7 @@ struct Piano
             }
 
             window.clear();
-            window.display();  // just to control fps for fade timing
+            window.display();  // just to control fps for volume envelopes
         }
 
     }
