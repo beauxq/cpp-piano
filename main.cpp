@@ -11,6 +11,11 @@
 
 constexpr double pi = 3.14159265358979323846;
 
+// volume envelope timing
+constexpr unsigned int fps = 180;  // keeping latency low
+constexpr float articulation = 5.625F / fps;
+constexpr float fade = 45.0F / fps;
+
 typedef int Step;
 
 struct Piano
@@ -106,15 +111,15 @@ struct Piano
                 if (stepAndSound.second.getStatus() == sf::SoundSource::Playing)
                 {
                     // std::cout << "sound addr adj volume: " << &(stepAndSound.second) << std::endl;
-                    double vol = stepAndSound.second.getVolume();
+                    float vol = stepAndSound.second.getVolume();
                     if (vol > 50)
                     {  // articulation
                         // std::cout << "vol == " << vol << std::endl;
-                        stepAndSound.second.setVolume(vol - 0.03125);  // 1/32  timed with fps
+                        stepAndSound.second.setVolume(vol - articulation);
                     }
                     else if (vol < 49.5 && vol > 0.5)
                     {  // fade out
-                        stepAndSound.second.setVolume(vol - 0.25);  // 1/4
+                        stepAndSound.second.setVolume(vol - fade);
                     }
                     else if (vol <= 0.5)
                     {
